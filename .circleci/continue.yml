@@ -1,0 +1,113 @@
+version: 2.1
+
+parameters:
+  terraform-job:
+    type: boolean
+    default: false
+
+orbs:
+  azure-acr: circleci/azure-acr@0.2.0
+  terraform: circleci/terraform@3.0.0
+  kubernetes: circleci/kubernetes@0.12.0
+
+executors:
+  azure-cli:
+    docker:
+      - image: mcr.microsoft.com/azure-cli:2.30.0
+
+jobs:
+  Build and push Docker image to ACR:
+    executor: azure-cli
+    environment:
+      CLUSTER_NAME: demo
+      RESOURCE_GROUP: demo
+      REGISTRY_NAME: demoiris
+      REPO_NAME: demo/rest-iris-app
+    steps:
+      - checkout
+      - run:
+          name: Build and push image to ACR
+          command: |
+            az login --service-principal --username ${ARM_CLIENT_ID} --password ${ARM_CLIENT_SECRET} --tenant ${ARM_TENANT_ID}
+            az acr build --image ${REPO_NAME}:${CIRCLE_SHA1} --registry ${REGISTRY_NAME} --resource-group ${RESOURCE_GROUP} .
+
+  Terraform:
+    working_directory: ~/demo/terraform
+    executor:
+      name: terraform/default
+      tag: 1.0.11
+    steps:
+      - checkout:
+          path: ~/demo
+      - terraform/init
+      - terraform/validate
+      - terraform/plan
+      - terraform/apply
+
+  Setup packages:
+    executor: azure-cli
+    environment:
+      RESOURCE_NAME: demo
+      RESOURCE_GROUP: demo
+      ACR_NAME: demoiris
+      HELM_VERSION: v3.7.1
+      HELMFILE_VERSION: v0.142.0
+    steps:
+      - checkout:
+          path: ~/demo
+      - run:
+          name: Replace DOMAIN_NAME placeholder
+          command: grep -rl 'DOMAIN_NAME' ~/demo/helm | xargs sed -i "s|DOMAIN_NAME|${DOMAIN_NAME}|g"
+      - run:
+          name: Login to Azure
+          command: az login --service-principal --username ${ARM_CLIENT_ID} --password ${ARM_CLIENT_SECRET} --tenant ${ARM_TENANT_ID}
+      - run:
+          name: Get AKS credentials
+          command: az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${RESOURCE_NAME}
+      - run:
+          name: Assign AKS managed identities access to public IP in 'demo' resource group
+          command: |
+            export SUBSCRIPTION_ID=$(az account show --query id | tr -d '"')
+            export AKS_MANAGED_IDENTITY=$(az aks show --resource-group ${RESOURCE_GROUP} --name ${RESOURCE_NAME} --query "identity.principalId" | tr -d '"')
+            az role assignment create            \
+              --assignee ${AKS_MANAGED_IDENTITY} \
+              --role 'Network Contributor'       \
+              --scope /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Network/publicIPAddresses/${RESOURCE_NAME}
+      - kubernetes/install-kubectl
+      - run:
+          name: Install Helm & Helmfile
+          command: |
+            wget https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz -O /tmp/helm-${HELM_VERSION}-linux-amd64.tar.gz
+            tar -xvzf /tmp/helm-${HELM_VERSION}-linux-amd64.tar.gz
+            mv ./linux-amd64/helm /usr/local/bin
+            wget https://github.com/roboll/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_linux_amd64 -O /tmp/helmfile
+            chmod +x /tmp/helmfile
+            mv /tmp/helmfile /usr/local/bin
+      - run:
+          name: Install packages
+          working_directory: ~/demo/helm
+          command: |
+            export LOAD_BALANCER_IP=$(az network public-ip show --name ${RESOURCE_NAME} --resource-group ${RESOURCE_NAME} --query "ipAddress" | tr -d '"')
+            echo "Public Load Balancer IP: ${LOAD_BALANCER_IP}"
+            helmfile sync
+
+workflows:
+  Setup infrastructure and packages:
+    when: << pipeline.parameters.terraform-job >>
+    jobs:
+      - Terraform
+      - Build and push Docker image to ACR:
+          requires:
+            - Terraform
+      - Setup packages:
+          requires:
+            - Build and push Docker image to ACR
+
+  Setup only packages:
+    when:
+      not: << pipeline.parameters.terraform-job >>
+    jobs:
+      - Build and push Docker image to ACR
+      - Setup packages:
+          requires:
+            - Build and push Docker image to ACR

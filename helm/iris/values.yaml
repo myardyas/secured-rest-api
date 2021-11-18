@@ -1,0 +1,38 @@
+namespaceOverride: iris-rest
+replicaCount: 1
+
+strategy: |
+  type: Recreate
+
+image:
+  repository: intersystemsdc/iris-community
+  tag: 2021.1.0.215.3-zpm
+
+webPort:
+  name: web
+  value: 52773
+
+service:
+  enabled: true
+  name: iris-rest
+  type: ClusterIP
+  loadBalancerIP: ""
+  ports:
+    web:
+      port: 52773
+      targetPort: 52773
+      protocol: TCP
+
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: lets-encrypt-staging
+  hosts:
+    - DOMAIN_NAME
+  paths:
+    - /
+  tls:
+  - hosts:
+    - DOMAIN_NAME
+    secretName: demo-iris

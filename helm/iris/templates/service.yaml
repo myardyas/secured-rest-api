@@ -1,0 +1,24 @@
+{{- if .Values.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "iris-rest.name" . }}
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ template "iris-rest.name" . }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | replace "+" "_" | trunc 63 }}
+spec:
+  selector:
+    app: {{ template "iris-rest.name" . }}
+    release: {{ .Release.Name }}
+  ports:
+  {{- range $key, $value := .Values.service.ports }}
+    - name: {{ $key }}
+{{ toYaml $value | indent 6 }}
+  {{- end }}
+  type: {{ .Values.service.type }}
+  {{- if ne .Values.service.loadBalancerIP "" }}
+  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
+  {{- end }}
+{{- end }}

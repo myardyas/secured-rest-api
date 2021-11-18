@@ -1,0 +1,60 @@
+helmDefaults:
+  wait: true
+  timeout: 600
+  force: false
+  historyMax: 5
+  createNamespace: true
+  atomic: true
+
+repositories:
+- name: ingress-nginx
+  url: https://kubernetes.github.io/ingress-nginx
+
+- name: jetstack
+  url: https://charts.jetstack.io
+
+releases:
+- name: iris-app
+  chart: ./iris
+  namespace: iris
+  version: 0.1.0
+  set:
+  - name: image.repository
+    value: demoiris.azurecr.io/demo/rest-iris-app
+  - name: image.tag
+    value: {{ requiredEnv "CIRCLE_SHA1" }}
+
+- name: ingress-nginx
+  chart: ingress-nginx/ingress-nginx
+  namespace: ingress-nginx
+  version: 4.0.3
+  set:
+  - name: controller.service.loadBalancerIP
+    value: {{ requiredEnv "LOAD_BALANCER_IP" }}
+  - name: controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-resource-group"
+    value: {{ requiredEnv "RESOURCE_GROUP" }}
+
+- name: cert-manager
+  chart: jetstack/cert-manager
+  namespace: cert-manager
+  version: v1.5.3
+  set:
+  - name: installCRDs
+    value: true
+  hooks:
+  - events: ["postsync"]
+    showlogs: true
+    command: kubectl
+    args: ["apply", "-f", "cert-manager/lets-encrypt-staging.yaml"]
+  - events: ["postsync"]
+    showlogs: true
+    command: kubectl
+    args: ["apply", "-f", "cert-manager/lets-encrypt-production.yaml"]
+  - events: ["preuninstall"]
+    showlogs: true
+    command: kubectl
+    args: ["delete", "-f", "cert-manager/lets-encrypt-staging.yaml"]
+  - events: ["preuninstall"]
+    showlogs: true
+    command: kubectl
+    args: ["delete", "-f", "cert-manager/lets-encrypt-production.yaml"]
