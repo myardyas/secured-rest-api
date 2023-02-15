@@ -1,0 +1,13 @@
+apiVersion: intersystems.com/v1alpha1
+kind: IrisCluster
+metadata:
+  name: {{ include "iris-app.fullname" . }}
+spec:
+  licenseKeySecret:
+    name: {{ include "iris-app.fullname" . }}-license
+  topology:
+    data:
+      image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+      podTemplate:
+        spec:
+          args: {{ .Values.topology.data.podTemplate.spec.args }}

@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    acme.cert-manager.io/http01-ingress-class: argocd-nginx
+    cert-manager.io/cluster-issuer: lets-encrypt-production
+    kubernetes.io/ingress.class: argocd-nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  name: iris-maze
+  namespace: iko
+spec:
+  rules:
+  - host: iris-maze.demo.community.intersystems.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: iris-maze-iriscluster
+            port:
+              number: 52773
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - iris-maze.demo.community.intersystems.com
+    secretName: iris-maze-iriscluster
+

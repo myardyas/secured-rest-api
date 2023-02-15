@@ -1,0 +1,19 @@
+version: '3.9'
+services:
+  buildkit:
+    image: moby/buildkit:v0.11.3
+    privileged: true
+    volumes:
+      - ./:/secured-rest-api
+    command:
+      - buildctl-daemonless.sh
+      - build
+      - --frontend
+      - dockerfile.v0
+      - --local
+      - context=/secured-rest-api
+      - --local
+      - dockerfile=/secured-rest-api
+      - --output
+      - type=image,name=eu.gcr.io/iris-community-demos/secured-rest-api:v1,push=true
+

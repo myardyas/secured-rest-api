@@ -1,0 +1,16 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: eu.gcr.io/iris-community-demos/myardyas-secured-rest-api
+  tag: 95b8db954465c4f662c0f812a2eb8570da532c73
+
+irisKey: ""
+
+topology:
+  data:
+    podTemplate:
+      spec:
+        args:
+        - --check-caps
+        - "false"

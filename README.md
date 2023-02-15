@@ -11,7 +11,6 @@ Make sure you have [git](https://git-scm.com/book/en/v2/Getting-Started-Installi
 zpm:USER>install dc-sample-rest
 
 ## Installation for development with Docker
-
 Create your repository from template.
 
 Clone/git pull the repo into any local directory e.g. like it is shown below (here I show all the examples related to this repository, but I assume you have your own derived from the template):
